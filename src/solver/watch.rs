@@ -1,4 +1,4 @@
-use crate::{clause::ClauseIdx, data::LitVec, Lit};
+use super::clause::ClauseIdx;
 
 #[derive(Clone)]
 pub struct Watch {

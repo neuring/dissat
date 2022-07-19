@@ -4,7 +4,7 @@
 /// A variable can only appear once in a clause.
 use std::{num::NonZeroU32, ops::Range};
 
-use crate::Lit;
+use super::Lit;
 
 pub type Clause<'db> = &'db [Lit];
 pub type ClauseMut<'db> = &'db mut [Lit];
@@ -21,11 +21,7 @@ pub struct ClauseDB {
 }
 
 impl ClauseDB {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    pub fn insert_clause(&mut self, cls: &[Lit]) -> ClauseIdx {
+    pub fn insert_clause(&mut self, cls: Clause) -> ClauseIdx {
         let start = self.clause_data.len();
 
         self.clause_data.extend(cls);
@@ -47,7 +43,8 @@ impl ClauseDB {
         }
     }
 
-    pub fn get<'db>(&'db self, r: ClauseIdx) -> Clause<'db> {
+    #[allow(unused)]
+    pub fn get(&self, r: ClauseIdx) -> Clause {
         debug_assert!(self.is_valid_clause_idx(r));
 
         let start = r.start as usize;
@@ -56,7 +53,7 @@ impl ClauseDB {
         &self.clause_data[start..end]
     }
 
-    pub fn get_mut<'db>(&'db mut self, r: ClauseIdx) -> ClauseMut<'db> {
+    pub fn get_mut(&mut self, r: ClauseIdx) -> ClauseMut {
         debug_assert!(self.is_valid_clause_idx(r));
 
         let start = r.start as usize;
@@ -79,7 +76,7 @@ impl ClauseDB {
         }
     }
 
-    pub fn iter<'db>(&'db self) -> impl Iterator<Item = Clause<'db>> {
+    pub fn iter(&self) -> impl Iterator<Item = Clause<'_>> {
         struct ClauseIter<'db> {
             ranges: std::slice::Iter<'db, Range<u32>>,
             clauses: &'db [Lit],

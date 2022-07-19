@@ -1,4 +1,5 @@
-use crate::{util, Lit};
+use super::Lit;
+use crate::util;
 
 /// Wrapper over Vec which is indexed by [`Lit`]
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]

@@ -1,4 +1,4 @@
-use crate::Var;
+use super::Var;
 
 /// Wrapper over Vec which is indexed by [`Var`]
 #[derive(Debug, PartialEq, Eq, Default, Clone, Hash)]
@@ -11,6 +11,21 @@ impl<T> VarVec<T> {
 
     pub fn with_capacity(capacity: usize) -> Self {
         VarVec(Vec::with_capacity(capacity))
+    }
+
+    pub fn len(&self) -> usize {
+        // The first element is always empty, because we index using the underlying NonZero value of a variable.
+        // Since this value can never be zero, the length is effectively on less.
+        // We use this len value to also store the number of variables so it is important to be exact here.
+        self.0.len() - 1
+    }
+
+    pub fn iter_with_var(&self) -> impl Iterator<Item = (Var, &T)> + '_ {
+        self.0
+            .iter()
+            .enumerate()
+            .skip(1)
+            .map(|(var, val)| (Var::new(var as i32), val))
     }
 }
 

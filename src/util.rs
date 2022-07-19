@@ -1,3 +1,5 @@
+#![allow(clippy::needless_lifetimes)]
+
 pub use remainder::{remaining, Remaining};
 
 mod remainder {
@@ -15,22 +17,18 @@ mod remainder {
         /// Returns `None` if the index is out-of-bounds or the same index
         /// as used on the call to `remaining`.
         pub fn get_mut<'b>(&'b mut self, i: usize) -> Option<&'b mut T> {
-            unsafe {
-                if self.used_index != i && i < self.len {
-                    Some(&mut *self.data.add(i))
-                } else {
-                    None
-                }
+            if self.used_index != i && i < self.len {
+                Some(unsafe { &mut *self.data.add(i) })
+            } else {
+                None
             }
         }
 
         pub fn get<'b>(&'b self, i: usize) -> Option<&'b T> {
-            unsafe {
-                if self.used_index != i && i < self.len {
-                    Some(&*self.data.add(i))
-                } else {
-                    None
-                }
+            if self.used_index != i && i < self.len {
+                Some(unsafe { &*self.data.add(i) })
+            } else {
+                None
             }
         }
     }
@@ -38,22 +36,20 @@ mod remainder {
     /// Retrieve a value form a slice, but allow accessing the remaining elements using
     /// the returned `Remaining` object.
     pub fn remaining<T>(slice: &mut [T], i: usize) -> Option<(&mut T, Remaining<'_, T>)> {
-        unsafe {
-            let len = slice.len();
-            let ptr = slice.as_mut_ptr();
+        let len = slice.len();
+        let ptr = slice.as_mut_ptr();
 
-            if i >= len {
-                return None;
-            }
-            let value = &mut *ptr.add(i);
-            let remaining = Remaining {
-                used_index: i,
-                data: ptr,
-                len,
-                _marker: PhantomData,
-            };
-            Some((value, remaining))
+        if i >= len {
+            return None;
         }
+        let value = unsafe { &mut *ptr.add(i) };
+        let remaining = Remaining {
+            used_index: i,
+            data: ptr,
+            len,
+            _marker: PhantomData,
+        };
+        Some((value, remaining))
     }
 
     #[cfg(test)]
@@ -64,7 +60,7 @@ mod remainder {
         fn remaining_test() {
             let mut data = vec![1, 2, 3, 4];
 
-            let (val, mut remaining) = remaining(&mut data, 2).unwrap();
+            let (val, remaining) = remaining(&mut data, 2).unwrap();
             assert_eq!(*val, 3);
 
             let val1 = remaining.get(0).unwrap();

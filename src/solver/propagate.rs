@@ -1,7 +1,9 @@
-use crate::{watch::Watch, Solver};
+/// Implementation of the unit propagation algorithm for two watched literals.
+use super::{clause::ClauseIdx, trail::TrailReason, watch::Watch, Solver};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PropagationResult {
-    Contradiction,
+    Contradiction(ClauseIdx),
     Done,
 }
 
@@ -9,15 +11,20 @@ impl Solver {
     pub(crate) fn propagate(&mut self) -> PropagationResult {
         let mut trail_pos = self.last_propagation_depth;
 
-        while let Some(&lit) = self.trail.get(trail_pos) {
-            dbg!(trail_pos);
-            println!("trail = {:?}", &self.trail);
-            self.print_state();
+        while let Some(&trail_elem) = self.trail.get(trail_pos) {
+            let lit = trail_elem.lit;
+            debug_assert!(self.trail.is_lit_satisfied(lit));
 
-            debug_assert!(self.assignment.is_lit_satisified(lit));
+            let mut contradiction_found = None;
 
             let (lit_watch, mut remaining_watches) = self.watches.remaining(-lit);
             lit_watch.retain(|watch| {
+                // We stop propagating if a contradiction was found.
+                // In this case we just want `retain` to keep the rest of the elements.
+                if contradiction_found.is_some() {
+                    return true;
+                }
+
                 // Which watched clauses do we need to search for new literal.
                 let cls_idx = watch.clause;
                 let cls = self.clause_db.get_mut(cls_idx);
@@ -31,7 +38,7 @@ impl Solver {
 
                 // search for new unassigned or satisified literal.
                 for (candidate_idx, candidate) in cls.iter_mut().enumerate().skip(2) {
-                    if !self.assignment.is_lit_unsatisfied(*candidate) {
+                    if !self.trail.is_lit_unsatisfied(*candidate) {
                         // In order to watch the new literal, we push a new watch.
                         remaining_watches[*candidate].push(Watch { clause: cls_idx });
 
@@ -49,24 +56,28 @@ impl Solver {
 
                 // Depending on whether the other literal is unsatisfied or unassigned (it can never be satisfied),
                 // we either have a new unit literal to propagate or found a contradiction.
-                if self.assignment.is_lit_unassigned(new_unit_lit) {
-                    self.trail.push(new_unit_lit);
-                    self.assignment.assign_lit(new_unit_lit);
+                if self.trail.is_lit_unassigned(new_unit_lit) {
+                    self.trail
+                        .assign_lit(new_unit_lit, TrailReason::Propagated { cls: cls_idx });
                     // Make sure the newly assigned literal is at the beginning of the clause.
                     cls.swap(0, new_unit_lit_idx);
-                    return true;
+                    true
                 } else {
-                    debug_assert!(self.assignment.is_lit_unsatisfied(new_unit_lit));
-                    // Contradiction found
-                    return true;
+                    debug_assert!(self.trail.is_lit_unsatisfied(new_unit_lit));
+                    contradiction_found = Some(cls_idx);
+                    true
                 }
             });
+
+            if let Some(conflicting_clause) = contradiction_found {
+                return PropagationResult::Contradiction(conflicting_clause);
+            }
 
             trail_pos += 1;
         }
 
         self.last_propagation_depth = trail_pos;
-        debug_assert!(self.last_propagation_depth == self.trail.len());
+        debug_assert!(self.last_propagation_depth == self.trail.assigned_vars());
         PropagationResult::Done
     }
 }

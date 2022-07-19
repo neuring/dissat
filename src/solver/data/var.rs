@@ -41,6 +41,7 @@ impl Lit {
         self.get() > 0
     }
 
+    #[allow(unused)]
     pub fn is_neg(self) -> bool {
         self.get() < 0
     }
