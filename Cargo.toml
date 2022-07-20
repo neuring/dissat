@@ -3,7 +3,10 @@ name = "dissat"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-index_vec = "0.1.3"
+tracing = { version = "0.1.35", features = ["max_level_trace", "release_max_level_off"] }
+
+[dev-dependencies]
+tracing-subscriber = "0.3.14"
+
+[features]

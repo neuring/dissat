@@ -2,6 +2,7 @@ mod analyze;
 mod assignment;
 mod clause;
 mod data;
+mod log;
 mod propagate;
 mod trail;
 mod watch;
@@ -12,6 +13,7 @@ use clause::ClauseDB;
 use data::LitVec;
 pub use data::{Lit, Var};
 use propagate::PropagationResult;
+use tracing::debug;
 use trail::{Trail, TrailReason};
 use watch::Watch;
 
@@ -134,7 +136,7 @@ impl Solver {
         }
     }
 
-    fn is_satisfied(&self) -> bool {
+    fn all_vars_assigned(&self) -> bool {
         self.trail.assignment_complete()
     }
 
@@ -150,18 +152,35 @@ impl Solver {
 
     pub fn solve(&mut self) -> Result {
         loop {
+            self.log_state();
             let result = self.propagate();
 
             if let PropagationResult::Contradiction(conflicting_clause) = result {
                 if self.analyze_contradiction(conflicting_clause) == AnalyzeResult::Unsat {
+                    debug!("Problem is Unsat");
                     return Result::Unsat(Proof);
+                } else {
+                    // 'analyze_contradiction` has flipped a decision variable.
+                    // We need to start at the beginning with unit propagation.
+                    continue;
                 }
-            } else if self.is_satisfied() {
-                return Result::Sat(self.extract_model());
+            } else if self.all_vars_assigned() {
+                // When all variables are assigned we have to have a satisfying assignment, otherwise the
+                // propagation result would have been `Contradiction`
+                let model = self.extract_model();
+                debug!("Satisfying assignment found! {:?}", model.as_vec());
+                assert!(
+                    self.check_assignment(),
+                    "Generated assignment doesn't satisfy the input formula"
+                );
+                return Result::Sat(model);
             }
 
             match self.decide() {
-                Some(var) => self.trail.assign_lit(var.into(), TrailReason::Decision),
+                Some(var) => {
+                    debug!("new decision variable {var}");
+                    self.trail.assign_lit(var.into(), TrailReason::Decision)
+                }
                 None => {
                     unreachable!("
                         No new decision variable candidate found, this means all variables are successfully satisified.
@@ -173,23 +192,10 @@ impl Solver {
         }
     }
 
-    #[allow(unused)]
-    pub(crate) fn print_state(&self) {
-        const RED: &str = "\u{1b}[31m";
-        const GREEN: &str = "\u{1b}[32m";
-        const END: &str = "\u{1b}[0m";
-
-        for cls in self.clause_db.iter() {
-            let cls_str = cls
-                .iter()
-                .map(|&lit| match self.trail.get_lit_assignment(lit) {
-                    Some(true) => format!("{GREEN}{}{END}", lit.get()),
-                    Some(false) => format!("{RED}{}{END}", lit.get()),
-                    None => format!("{}", lit.get()),
-                })
-                .intersperse(", ".into())
-                .collect::<String>();
-            println!("{cls_str}");
-        }
+    /// check if the current assignment, satisfies the entire input formula.
+    fn check_assignment(&self) -> bool {
+        self.clause_db
+            .iter()
+            .all(|clause| self.trail.is_clause_satisfied(clause))
     }
 }

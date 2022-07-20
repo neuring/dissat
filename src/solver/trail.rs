@@ -1,4 +1,8 @@
-use super::{assignment::Assignment, clause::ClauseIdx, Lit, Var};
+use super::{
+    assignment::Assignment,
+    clause::{Clause, ClauseIdx},
+    Lit, Var,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TrailReason {
@@ -26,14 +30,6 @@ pub(crate) struct Trail {
 }
 
 impl Trail {
-    pub fn push(&mut self, trail_elem: TrailElement) {
-        self.trail.push(trail_elem);
-
-        if let TrailReason::Decision { .. } = trail_elem.reason {
-            self.decision_positions.push(self.trail.len());
-        }
-    }
-
     pub fn assigned_vars(&self) -> usize {
         self.trail.len()
     }
@@ -52,15 +48,21 @@ impl Trail {
 
     // Remove and return the last decision in the trail, including all literals with the same decision level.
     pub fn pop_decision(&mut self) -> Option<TrailElement> {
+        tracing::debug!(
+            "trail = {}, trail_pos = {:?}",
+            self.fmt_trail(),
+            self.decision_positions
+        );
         let decision_pos = self.decision_positions.pop()?;
 
         let decision_elem = loop {
             match self.trail.pop() {
                 Some(trail_elem @ TrailElement {
-                    lit: _,
+                    lit,
                     reason: TrailReason::Decision,
                 }) => {
                     debug_assert!(self.trail.len() == decision_pos);
+                    self.assignment.unassign_lit(lit);
                     break trail_elem;
                 },
                 Some(TrailElement { lit, .. }) => {
@@ -107,7 +109,18 @@ impl Trail {
 
     pub fn assign_lit(&mut self, lit: Lit, reason: TrailReason) {
         self.trail.push(TrailElement { lit, reason });
+        if reason == TrailReason::Decision {
+            self.decision_positions.push(self.trail.len() - 1)
+        }
         let decision_level = self.trail.len();
         self.assignment.assign_lit(lit, decision_level as u32);
+    }
+
+    pub fn trail(&self) -> &[TrailElement] {
+        &self.trail
+    }
+
+    pub fn is_clause_satisfied(&self, clause: Clause) -> bool {
+        clause.iter().copied().any(|lit| self.is_lit_satisfied(lit))
     }
 }

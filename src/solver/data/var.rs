@@ -1,6 +1,6 @@
 use std::num::NonZeroI32;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Var(NonZeroI32);
 
 impl Var {
@@ -17,7 +17,19 @@ impl Var {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+impl std::fmt::Debug for Var {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::fmt::Display for Var {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Lit(NonZeroI32);
 
 impl Lit {
@@ -60,5 +72,17 @@ impl std::ops::Neg for Lit {
         // Safety: `Lit::new` ensures that its value is not zero.
         //          Therefore, if we negate its value it has to be non-zero as well.
         unsafe { Lit(NonZeroI32::new_unchecked(-self.0.get())) }
+    }
+}
+
+impl std::fmt::Debug for Lit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::fmt::Display for Lit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
     }
 }
