@@ -46,6 +46,16 @@ impl Trail {
         self.assignment.get(lit)
     }
 
+    pub fn last_decision_pos(&self) -> Option<usize> {
+        let result = self.decision_positions.last().copied();
+        debug_assert!(if let Some(pos) = result {
+            self.trail[pos].reason == TrailReason::Decision
+        } else {
+            true
+        });
+        result
+    }
+
     // Remove and return the last decision in the trail, including all literals with the same decision level.
     pub fn pop_decision(&mut self) -> Option<TrailElement> {
         tracing::debug!(

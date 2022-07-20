@@ -11,8 +11,12 @@ pub(crate) enum PropagationResult {
 
 impl Solver {
     pub(crate) fn propagate(&mut self) -> PropagationResult {
-        debug!("starting unit propagation");
-        let mut trail_pos = self.last_propagation_depth;
+        debug!(
+            "starting unit propagation {} (at {})",
+            self.trail.fmt_trail(),
+            self.unpropagated_lit_pos
+        );
+        let mut trail_pos = self.unpropagated_lit_pos;
 
         while let Some(&trail_elem) = self.trail.get(trail_pos) {
             let lit = trail_elem.lit;
@@ -90,14 +94,19 @@ impl Solver {
             });
 
             if let Some(conflicting_clause) = contradiction_found {
+                debug!(
+                    "unpropagated_lit_pos = {}, assigned_vars = {}",
+                    self.unpropagated_lit_pos,
+                    self.trail.assigned_vars()
+                );
                 return PropagationResult::Contradiction(conflicting_clause);
             }
 
             trail_pos += 1;
         }
 
-        self.last_propagation_depth = trail_pos;
-        debug_assert!(self.last_propagation_depth == self.trail.assigned_vars());
+        self.unpropagated_lit_pos = trail_pos;
+        debug_assert_eq!(self.unpropagated_lit_pos, self.trail.assigned_vars());
         PropagationResult::Done
     }
 }

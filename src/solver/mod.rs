@@ -24,7 +24,9 @@ pub struct Solver {
     watches: LitVec<Vec<Watch>>,
 
     trail: Trail,
-    last_propagation_depth: usize,
+
+    // Where on the trail, should the unit propgation continue.
+    unpropagated_lit_pos: usize,
 }
 
 pub struct Model<'a> {
