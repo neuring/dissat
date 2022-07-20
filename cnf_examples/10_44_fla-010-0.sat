@@ -1,3 +1,4 @@
+c SAT
 c formula generated with seed 0, probabilty values 0.414000 0.028000 0.503000 and clause ration 4.400000
 c the planted solution is {1, 2, 4, 5, 7, 9, 10}
 p cnf 10 44

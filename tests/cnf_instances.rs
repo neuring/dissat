@@ -1,11 +1,10 @@
-#![feature(assert_matches)]
 #![feature(once_cell)]
-//#![feature(custom_test_frameworks)]
-//#![test_runner(datatest::runner)]
+#![feature(custom_test_frameworks)]
+#![test_runner(datatest::runner)]
 
-use std::{assert_matches::assert_matches, io::Write};
+use std::io::Write;
 
-use dissat::{Result, Solver};
+use dissat::Solver;
 use tracing_subscriber::fmt::MakeWriter;
 
 fn set_up_log() {
@@ -50,33 +49,20 @@ fn set_up_log() {
     LazyLock::force(&LOG_SET_UP);
 }
 
-#[test]
-fn decision_test() {
-    set_up_log();
-
-    let mut solver = Solver::from_dimacs(include_str!(
-        "../cnf_examples/2_2_trivial_decision_and_prop.dimacs"
-    ))
-    .unwrap();
-    let model = solver.solve().unwrap_sat();
-    assert!(model.lit(2));
-    print!("HI");
+fn assert_match_expected(result: dissat::Result, input: &str) {
+    let header = input.lines().next().expect("Empty input").trim();
+    match header {
+        "c SAT" => assert!(result.is_sat(), "Expected satisfiable solution"),
+        "c UNSAT" => assert!(result.is_unsat(), "Expected unsatisfiable solution"),
+        _ => panic!("Invalid header"),
+    }
 }
 
-#[test]
-fn propagation_test() {
+#[datatest::files("cnf_examples", {
+  input in "^.*",
+})]
+fn example(input: &str) {
     set_up_log();
-
-    let mut solver =
-        Solver::from_dimacs(include_str!("../cnf_examples/3_3_propagation.dimacs")).unwrap();
-    assert_matches!(solver.solve(), Result::Sat(model) if model.as_vec() == vec![-1, -2, 3])
-}
-
-#[test]
-fn other_test() {
-    set_up_log();
-
-    let mut solver =
-        Solver::from_dimacs(include_str!("../cnf_examples/10_44_fla-010-0.dimacs")).unwrap();
-    assert!(solver.solve().is_sat());
+    let mut solver = Solver::from_dimacs(input).expect("Malformed dimacs format.");
+    assert_match_expected(solver.solve(), input);
 }
