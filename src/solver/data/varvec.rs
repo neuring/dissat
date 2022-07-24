@@ -17,7 +17,7 @@ impl<T> VarVec<T> {
         // The first element is always empty, because we index using the underlying NonZero value of a variable.
         // Since this value can never be zero, the length is effectively on less.
         // We use this len value to also store the number of variables so it is important to be exact here.
-        self.0.len() - 1
+        self.0.len().saturating_sub(1)
     }
 
     pub fn iter_with_var(&self) -> impl Iterator<Item = (Var, &T)> + '_ {

@@ -27,6 +27,10 @@ pub struct Solver {
 
     // Where on the trail, should the unit propgation continue.
     unpropagated_lit_pos: usize,
+
+    // The input cnf formula is trivially unsat.
+    // This might be because an empty clause was added or contradictory unit clauses.
+    trivially_unsat: bool,
 }
 
 pub struct Model<'a> {
@@ -108,11 +112,19 @@ impl Solver {
         Ok(solver)
     }
 
+    /// Remove duplicated literals
+    fn normalise_clause(cls: &mut Vec<Lit>) {
+        cls.sort_by_key(|lit| lit.get().abs());
+        cls.dedup();
+    }
+
     pub fn add_clause<I>(&mut self, cls: I)
     where
         I: IntoIterator<Item = i32>,
     {
-        let cls: Vec<Lit> = cls.into_iter().map(Lit::new).collect();
+        let mut cls: Vec<Lit> = cls.into_iter().map(Lit::new).collect();
+
+        Self::normalise_clause(&mut cls);
 
         let max_lit = cls.iter().max_by_key(|l| l.var().get());
 
@@ -124,10 +136,14 @@ impl Solver {
 
         match cls.len() {
             0 => {
-                panic!("Empty clause added. Formula is trivially unsat.")
+                self.trivially_unsat = true;
             }
             1 => {
-                self.trail.assign_lit(cls[0], TrailReason::Axiom);
+                if self.trail.is_lit_unsatisfied(cls[0]) {
+                    self.trivially_unsat = true;
+                } else {
+                    self.trail.assign_lit(cls[0], TrailReason::Axiom);
+                }
             }
             _ => {
                 let cls_idx = self.clause_db.insert_clause(&cls);
@@ -153,6 +169,10 @@ impl Solver {
     }
 
     pub fn solve(&mut self) -> Result {
+        if self.trivially_unsat {
+            return Result::Unsat(Proof);
+        }
+
         loop {
             self.log_state();
             let result = self.propagate();
