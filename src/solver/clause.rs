@@ -29,11 +29,11 @@ impl ClauseDB {
         let end = self.clause_data.len();
         let size = end - start;
 
-        debug_assert!(<usize as TryInto<u32>>::try_into(start).is_ok());
+        debug_assert!(u32::try_from(start).is_ok());
         let start = start as u32;
-        debug_assert!(<usize as TryInto<u32>>::try_into(end).is_ok());
+        debug_assert!(u32::try_from(end).is_ok());
         let end = end as u32;
-        debug_assert!(<usize as TryInto<u32>>::try_into(size).is_ok());
+        debug_assert!(u32::try_from(size).is_ok());
         let size = size as u32;
 
         self.clause_ranges.push(start..end);

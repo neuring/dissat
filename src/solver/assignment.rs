@@ -1,9 +1,10 @@
-use super::{data::VarVec, Lit, Var};
+use super::{data::VarVec, trail::TrailReason, Lit, Var};
 
 #[derive(Clone, Copy, Debug)]
-struct AssignData {
-    status: bool,
-    decision_level: u32,
+pub(crate) struct AssignData {
+    pub status: bool,
+    pub decision_level: u32,
+    pub reason: TrailReason,
 }
 
 #[derive(Default)]
@@ -42,12 +43,13 @@ impl Assignment {
         }
     }
 
-    pub fn assign_lit(&mut self, lit: Lit, decision_level: u32) {
+    pub fn assign_lit(&mut self, lit: Lit, decision_level: u32, reason: TrailReason) {
         debug_assert!(self.is_lit_unassigned(lit));
 
         self.assignment[lit.var()] = Some(AssignData {
             status: lit.is_pos(),
             decision_level,
+            reason,
         });
     }
 
@@ -69,5 +71,9 @@ impl Assignment {
             .find(|&(_, data)| data.is_none())?;
 
         Some(var)
+    }
+
+    pub fn get_data(&self, lit: Lit) -> Option<&AssignData> {
+        self.assignment[lit.var()].as_ref()
     }
 }

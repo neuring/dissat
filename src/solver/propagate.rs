@@ -80,15 +80,18 @@ impl Solver {
                         "new unit clause found {cls}",
                         cls = self.trail.fmt_clause(cls)
                     );
+                    debug!("assigning literal {new_unit_lit}");
                     self.trail
                         .assign_lit(new_unit_lit, TrailReason::Propagated { cls: cls_idx });
                     // Make sure the newly assigned literal is at the beginning of the clause.
                     cls.swap(0, new_unit_lit_idx);
+                    self.stats.propagations += 1;
                     true
                 } else {
                     debug!("contradiction encountered {}", self.trail.fmt_clause(cls));
                     debug_assert!(self.trail.is_lit_unsatisfied(new_unit_lit));
                     contradiction_found = Some(cls_idx);
+                    self.stats.contradictions += 1;
                     true
                 }
             });

@@ -30,6 +30,10 @@ impl<T> VarVec<T> {
 }
 
 impl<T: Clone> VarVec<T> {
+    pub fn with_size(size: usize, default: T) -> Self {
+        Self(vec![default; size + 1])
+    }
+
     /// Resize so that `v` is valid index.
     pub fn expand(&mut self, v: Var, val: T) {
         let len = v.get() as usize + 1;

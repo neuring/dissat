@@ -18,6 +18,12 @@ use trail::{Trail, TrailReason};
 use watch::Watch;
 
 #[derive(Default)]
+pub struct Stats {
+    pub contradictions: u64,
+    pub propagations: u64,
+}
+
+#[derive(Default)]
 pub struct Solver {
     clause_db: ClauseDB,
 
@@ -31,6 +37,9 @@ pub struct Solver {
     // The input cnf formula is trivially unsat.
     // This might be because an empty clause was added or contradictory unit clauses.
     trivially_unsat: bool,
+
+    /// Various stats that might be of interest
+    stats: Stats,
 }
 
 pub struct Model<'a> {
@@ -219,5 +228,9 @@ impl Solver {
         self.clause_db
             .iter()
             .all(|clause| self.trail.is_clause_satisfied(clause))
+    }
+
+    pub fn stats(&self) -> &Stats {
+        &self.stats
     }
 }

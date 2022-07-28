@@ -45,8 +45,6 @@ fn set_up_log() {
             .without_time()
             .compact()
             .init();
-
-        tracing::info!("setup subscriber");
     });
 
     LazyLock::force(&LOG_SET_UP);
@@ -63,7 +61,7 @@ fn formula_too_complex(path: &Path) -> bool {
 
     // p cnf <variables> <clauses>
     let clauses = header[3].parse::<u32>().unwrap();
-    clauses > 100
+    clauses > 800
 }
 
 enum ExpectedSolution {
@@ -133,4 +131,10 @@ fn example(input: &Path) {
             (dissat::Result::Unsat(_), ExpectedSolution::Unsat) => {}
         }
     }
+
+    tracing::info!(
+        "finished: propagations = {}, contradictions = {}",
+        solver.stats().propagations,
+        solver.stats().contradictions
+    );
 }

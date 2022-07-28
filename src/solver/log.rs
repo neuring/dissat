@@ -14,10 +14,54 @@ const END: &str = "\u{1b}[0m";
 impl Solver {
     #[instrument(skip_all)]
     pub(crate) fn log_state(&self) {
+        #[cfg(debug_assertions)]
         for cls in self.clause_db.iter() {
             let cls_str = self.trail.fmt_clause(cls);
             debug!("{cls_str}");
         }
+    }
+
+    pub(crate) fn implication_graph_to_dot(
+        &self,
+        conflict: Option<Clause>,
+        mut out: impl std::io::Write,
+    ) -> Result<(), std::io::Error> {
+        writeln!(out, "digraph {{")?;
+        for elem in self.trail.trail() {
+            let annotation = match elem.reason {
+                TrailReason::Decision => "D",
+                TrailReason::Propagated { .. } => "P",
+                TrailReason::Axiom => "A",
+            };
+
+            writeln!(
+                out,
+                "{} [label = \"{}{annotation}\"];",
+                elem.lit.var(),
+                elem.lit
+            )?;
+
+            if let TrailReason::Propagated { cls } = elem.reason {
+                let cls = self.clause_db.get(cls);
+
+                for &l in cls {
+                    if l == elem.lit {
+                        continue;
+                    }
+
+                    writeln!(out, "{} -> {};", l.var(), elem.lit.var())?;
+                }
+            }
+        }
+
+        if let Some(conflict) = conflict {
+            writeln!(out, "X;");
+            for &l in conflict {
+                writeln!(out, "{} -> X;", l.var())?;
+            }
+        }
+
+        writeln!(out, "}}")
     }
 }
 
