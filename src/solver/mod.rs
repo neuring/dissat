@@ -2,6 +2,7 @@ mod analyze;
 mod assignment;
 mod clause;
 mod data;
+mod garbage;
 mod log;
 mod propagate;
 mod trail;
@@ -16,6 +17,8 @@ use propagate::PropagationResult;
 use tracing::debug;
 use trail::{Trail, TrailReason};
 use watch::Watch;
+
+use self::analyze::AnalyzeState;
 
 #[derive(Default)]
 pub struct Stats {
@@ -40,6 +43,10 @@ pub struct Solver {
 
     /// Various stats that might be of interest
     stats: Stats,
+
+    /// Various data, for analyzing conflicts. This field is mainly used in analyze.rs
+    /// and reset for each new conflict analysis.
+    analyze_state: AnalyzeState,
 }
 
 pub struct Model<'a> {
@@ -100,7 +107,7 @@ impl<'a> Result<'a> {
     pub fn unwrap_unsat(self) -> Proof {
         match self {
             Result::Unsat(proof) => proof,
-            Result::Sat(_) => panic!("Result is not SAT."),
+            Result::Sat(_) => panic!("Result is SAT."),
         }
     }
 }
@@ -155,7 +162,7 @@ impl Solver {
                 }
             }
             _ => {
-                let cls_idx = self.clause_db.insert_clause(&cls);
+                let cls_idx = self.clause_db.insert_clause(&cls, None);
                 for &lit in &cls[0..2] {
                     self.watches[lit].push(Watch { clause: cls_idx });
                 }

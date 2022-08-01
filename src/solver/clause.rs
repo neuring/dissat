@@ -9,22 +9,66 @@ use super::Lit;
 pub type Clause<'db> = &'db [Lit];
 pub type ClauseMut<'db> = &'db mut [Lit];
 
+fn clause_to_data(clause: Clause) -> &[u32] {
+    // SAFETY: Clause is slice of Lit.
+    //         Lit is a transparent newtype over NonZeroI32
+    //         which is a transparent wrapper over i32
+    //         which can be transmuted to u32.
+    unsafe { std::mem::transmute(clause) }
+}
+
+fn data_to_clause(clause: &[u32]) -> Clause {
+    // SAFETY: Clause is slice of Lit.
+    //         Lit is a transparent newtype over NonZeroI32
+    //         which is a transparent wrapper over i32
+    //         which can be transmuted to u32.
+    unsafe { std::mem::transmute(clause) }
+}
+
+fn data_to_clause_mut(clause: &mut [u32]) -> ClauseMut {
+    // SAFETY: Clause is slice of Lit.
+    //         Lit is a transparent newtype over NonZeroI32
+    //         which is a transparent wrapper over i32
+    //         which can be transmuted to u32.
+    unsafe { std::mem::transmute(clause) }
+}
+
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct ClauseIdx {
-    start: u32,
-    size: NonZeroU32,
+    pub(crate) start: u32,
+    pub(crate) size: NonZeroU32,
 }
+
+#[derive(Debug, Clone)]
+pub struct ClauseMeta {
+    pub range: Range<u32>,
+    /// LDB Value of the clause, if it was learned.
+    /// Clauses provided by the input have no ldb value.
+    pub ldb_glue: Option<NonZeroU32>,
+
+    /// Is this clause considered useless?
+    /// If so it will removed in the next sweep.
+    pub is_garbage: bool,
+}
+
 #[derive(Clone, Default)]
 pub struct ClauseDB {
-    clause_data: Vec<Lit>,
-    clause_ranges: Vec<Range<u32>>,
+    // This Vec serves as an arena where we allocate clauses.
+    // each u32 represents a literal.
+    // We use u32 instead of `Lit` because in the garbage collection phase
+    // we store the offset into the new arena where the clause has moved, in order to be able
+    // to efficiently update `ClauseIdx` which would be dangling otherwise.
+    pub(crate) clause_data: Vec<u32>,
+    pub(crate) clause_data_old: Vec<u32>,
+
+    pub(crate) clause_meta: Vec<ClauseMeta>,
 }
 
 impl ClauseDB {
-    pub fn insert_clause(&mut self, cls: Clause) -> ClauseIdx {
+    pub fn insert_clause(&mut self, cls: Clause, ldb_glue: Option<NonZeroU32>) -> ClauseIdx {
         let start = self.clause_data.len();
 
-        self.clause_data.extend(cls);
+        self.clause_data.extend(clause_to_data(cls));
 
         let end = self.clause_data.len();
         let size = end - start;
@@ -36,7 +80,11 @@ impl ClauseDB {
         debug_assert!(u32::try_from(size).is_ok());
         let size = size as u32;
 
-        self.clause_ranges.push(start..end);
+        self.clause_meta.push(ClauseMeta {
+            range: start..end,
+            ldb_glue,
+            is_garbage: false,
+        });
         ClauseIdx {
             start,
             size: NonZeroU32::new(size).expect("Insertion of empty clause."),
@@ -50,7 +98,7 @@ impl ClauseDB {
         let start = r.start as usize;
         let end = (r.start + r.size.get()) as usize;
 
-        &self.clause_data[start..end]
+        data_to_clause(&self.clause_data[start..end])
     }
 
     pub fn get_mut(&mut self, r: ClauseIdx) -> ClauseMut {
@@ -59,17 +107,17 @@ impl ClauseDB {
         let start = r.start as usize;
         let end = (r.start + r.size.get()) as usize;
 
-        &mut self.clause_data[start..end]
+        data_to_clause_mut(&mut self.clause_data[start..end])
     }
 
     fn is_valid_clause_idx(&self, r: ClauseIdx) -> bool {
         let entry = self
-            .clause_ranges
-            .binary_search_by_key(&r.start, |range| range.start);
+            .clause_meta
+            .binary_search_by_key(&r.start, |data| data.range.start);
 
         match entry {
             Ok(e) => {
-                let range = self.clause_ranges[e].clone();
+                let range = self.clause_meta[e].range.clone();
                 range.start == r.start && range.end == r.start + r.size.get()
             }
             Err(_) => false,
@@ -77,8 +125,10 @@ impl ClauseDB {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = Clause<'_>> {
+        type Iter<'db> = impl Iterator<Item = Range<u32>> + 'db;
+
         struct ClauseIter<'db> {
-            ranges: std::slice::Iter<'db, Range<u32>>,
+            ranges: Iter<'db>,
             clauses: &'db [Lit],
         }
 
@@ -92,8 +142,12 @@ impl ClauseDB {
         }
 
         ClauseIter {
-            ranges: self.clause_ranges.iter(),
-            clauses: &self.clause_data,
+            ranges: self.clause_meta.iter().map(|d| d.range.clone()),
+            clauses: data_to_clause(&self.clause_data),
         }
+    }
+
+    pub fn iter_clause_meta_mut(&mut self) -> impl Iterator<Item = &mut ClauseMeta> + '_ {
+        self.clause_meta.iter_mut()
     }
 }

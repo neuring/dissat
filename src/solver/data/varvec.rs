@@ -34,12 +34,20 @@ impl<T: Clone> VarVec<T> {
         Self(vec![default; size + 1])
     }
 
+    pub fn resize(&mut self, size: usize, default: T) {
+        self.0.resize(size + 1, default)
+    }
+
     /// Resize so that `v` is valid index.
     pub fn expand(&mut self, v: Var, val: T) {
         let len = v.get() as usize + 1;
         if len >= self.0.len() {
             self.0.resize(len, val)
         }
+    }
+
+    pub fn fill(&mut self, value: T) {
+        self.0.fill(value)
     }
 }
 

@@ -76,4 +76,8 @@ impl Assignment {
     pub fn get_data(&self, lit: Lit) -> Option<&AssignData> {
         self.assignment[lit.var()].as_ref()
     }
+
+    pub fn get_data_mut(&mut self, lit: Lit) -> Option<&mut AssignData> {
+        self.assignment[lit.var()].as_mut()
+    }
 }

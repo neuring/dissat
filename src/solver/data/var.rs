@@ -29,6 +29,7 @@ impl std::fmt::Display for Var {
     }
 }
 
+#[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Lit(NonZeroI32);
 
@@ -56,6 +57,10 @@ impl Lit {
     #[allow(unused)]
     pub fn is_neg(self) -> bool {
         self.get() < 0
+    }
+
+    pub(crate) fn to_u32(self) -> u32 {
+        self.0.get() as u32
     }
 }
 

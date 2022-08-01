@@ -17,6 +17,10 @@ impl<T> LitVec<T> {
             util::remaining(&mut self.0, lit_to_idx(l)).expect("litvec is too small for lit");
         (val, Remaining(remaining))
     }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ {
+        self.0.iter_mut()
+    }
 }
 
 pub struct Remaining<'a, T>(util::Remaining<'a, T>);

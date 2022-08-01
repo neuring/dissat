@@ -3,6 +3,7 @@ use tracing::debug;
 use super::{
     assignment::Assignment,
     clause::{Clause, ClauseIdx},
+    propagate::PropagationResult,
     Lit, Var,
 };
 
@@ -16,6 +17,19 @@ pub(crate) enum TrailReason {
 
     /// Axiomatic literal. These are generated when the user is supplying a unit clause.
     Axiom,
+}
+
+impl TrailReason {
+    /// Retrieve the clause index of a propagated literal.
+    /// Panics if self is not the Propagated variant.
+    pub(crate) fn get_cls_idx_mut(&mut self) -> &mut ClauseIdx {
+        match self {
+            TrailReason::Propagated { cls } => cls,
+            TrailReason::Decision | TrailReason::Axiom => {
+                panic!("`self` is not the `Propagated` variant.")
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,6 +108,21 @@ impl Trail {
         };
 
         Some(decision_elem)
+    }
+
+    pub(crate) fn update_clause_indices(&mut self, update_fn: impl Fn(&mut ClauseIdx)) {
+        for trail_elem in self.trail.iter_mut() {
+            if let TrailReason::Propagated { cls } = &mut trail_elem.reason {
+                update_fn(cls);
+
+                let assignment_data = self
+                    .assignment
+                    .get_data_mut(trail_elem.lit)
+                    .expect("We know that lit is in trail and therefore assigned.");
+
+                update_fn(assignment_data.reason.get_cls_idx_mut())
+            }
+        }
     }
 
     /// Expands internal assignment for new max variable.

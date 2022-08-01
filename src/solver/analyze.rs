@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use tracing::debug;
 
 use super::{
@@ -13,7 +15,8 @@ pub(crate) enum AnalyzeResult {
     Done,
 }
 
-struct AnalyzeState {
+#[derive(Default)]
+pub(crate) struct AnalyzeState {
     seen: VarVec<bool>,
 
     /// New learned 1UIP clause which is under construction.
@@ -21,15 +24,23 @@ struct AnalyzeState {
 
     /// Seen literals, whose reason clauses haven't been processed yet.
     open: u32,
+
+    /// Have we seen this decision level during conflict analysis
+    levels_seen: Vec<bool>,
+
+    /// Levels in new clause. We use this to derive the LDB value of a new clause.
+    levels_in_clause: Vec<u32>,
 }
 
 impl AnalyzeState {
-    fn new(num_vars: usize) -> Self {
-        Self {
-            seen: VarVec::with_size(num_vars, false),
-            new_clause: Vec::new(),
-            open: 0,
-        }
+    fn reset(&mut self, num_vars: usize, decision_levels: usize) {
+        self.seen.fill(false);
+        self.seen.resize(num_vars, false);
+        self.new_clause.clear();
+        self.levels_in_clause.clear();
+        self.levels_seen.clear();
+        self.levels_seen.resize(decision_levels + 1, false);
+        self.open = 0;
     }
 
     fn analyze_reason(&mut self, lit: Option<Lit>, reason: Clause, trail: &Trail) {
@@ -43,7 +54,7 @@ impl AnalyzeState {
     }
 
     fn analyze_literal(&mut self, lit: Lit, trail: &Trail) {
-        if self.has_seen(lit) {
+        if self.has_seen_lit(lit) {
             debug!("analyzing literal {lit}, already analyzed (seen)");
             return;
         }
@@ -64,11 +75,20 @@ impl AnalyzeState {
             self.open += 1;
         }
 
+        if !self.has_seen_level(lit_level) {
+            self.levels_seen[lit_level as usize] = true;
+            self.levels_in_clause.push(lit_level);
+        }
+
         self.seen[lit.var()] = true;
     }
 
-    fn has_seen(&self, lit: Lit) -> bool {
+    fn has_seen_lit(&self, lit: Lit) -> bool {
         self.seen[lit.var()]
+    }
+
+    fn has_seen_level(&self, lvl: u32) -> bool {
+        self.levels_seen[lvl as usize]
     }
 }
 
@@ -124,7 +144,8 @@ impl Solver {
         let mut reason = conflict_clause;
         let mut maybe_uip = None;
 
-        let mut analyze_state = AnalyzeState::new(self.trail.total_vars());
+        let mut analyze_state = &mut self.analyze_state;
+        analyze_state.reset(self.trail.total_vars(), current_level as usize);
 
         // Determine new 1UIP clause
         loop {
@@ -137,7 +158,7 @@ impl Solver {
                 let trail_elem = self.trail.get(trail_pos).unwrap();
                 let lit = trail_elem.lit;
 
-                if !analyze_state.has_seen(lit) {
+                if !analyze_state.has_seen_lit(lit) {
                     continue;
                 }
 
@@ -163,7 +184,7 @@ impl Solver {
         let uip = maybe_uip.unwrap();
         analyze_state.new_clause.push(-uip);
 
-        let uip_clause = analyze_state.new_clause;
+        let uip_clause = &mut analyze_state.new_clause;
         debug!("Learned new 1UIP clause: {:?}", uip_clause);
 
         let backjump_level = uip_clause[..uip_clause.len() - 1] // The last literal is the uip literal. The only literal with the highest lvl.
@@ -186,7 +207,14 @@ impl Solver {
             debug_assert_eq!(backjump_level, 0);
             self.trail.assign_lit(-uip, TrailReason::Axiom);
         } else {
-            let uip_clause_idx = self.clause_db.insert_clause(&uip_clause);
+            let ldb_glue = (analyze_state.levels_in_clause.len() as u32).try_into()
+                .expect("There has to be atleast a one level in clause, otherwise the clause length would be one");
+            debug_assert_eq!(
+                ldb_glue,
+                Self::calculate_ldb_from_clause(&self.trail, &uip_clause)
+            );
+
+            let uip_clause_idx = self.clause_db.insert_clause(&uip_clause, Some(ldb_glue));
             debug_assert!(self.trail.is_clause_all_unassigned(&uip_clause));
             debug!(
                 "Assigning flipped uip {} because of learned driving clause {uip_clause:?}",
@@ -201,5 +229,14 @@ impl Solver {
         }
 
         AnalyzeResult::Done
+    }
+
+    fn calculate_ldb_from_clause(trail: &Trail, cls: Clause) -> NonZeroU32 {
+        (cls.iter()
+            .map(|&lit| trail.get_decision_level(lit))
+            .collect::<std::collections::HashSet<_>>()
+            .len() as u32)
+            .try_into()
+            .unwrap()
     }
 }
