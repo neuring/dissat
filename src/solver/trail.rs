@@ -3,7 +3,6 @@ use tracing::debug;
 use super::{
     assignment::Assignment,
     clause::{Clause, ClauseIdx},
-    propagate::PropagationResult,
     Lit, Var,
 };
 
@@ -201,7 +200,7 @@ impl Trail {
 
     // Backtrack assignments such that the literals with the decision level `lvl` are last on the trail (i.e. are not removed.)
     // Returns the position, where unit propagation should continue
-    pub fn backtrack(&mut self, lvl: u32) -> usize {
+    pub fn backtrack(&mut self, lvl: u32, mut on_pop: impl FnMut(&TrailElement)) -> usize {
         debug!("Backtrack to decision level {lvl}");
 
         // We look in `decision_positions` for the decision for lvl + 1
@@ -216,6 +215,7 @@ impl Trail {
 
         for &e in &self.trail[pos..] {
             self.assignment.unassign_lit(e.lit);
+            on_pop(&e);
         }
 
         self.trail.truncate(pos);

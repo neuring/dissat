@@ -85,13 +85,14 @@ impl Solver {
                         .assign_lit(new_unit_lit, TrailReason::Propagated { cls: cls_idx });
                     // Make sure the newly assigned literal is at the beginning of the clause.
                     cls.swap(0, new_unit_lit_idx);
+                    // TODO this method call is expensive and should be replaced once we have a more optimal clause db impl
+                    self.clause_db.get_meta_mut(cls_idx).is_reason = true;
                     self.stats.propagations += 1;
                     true
                 } else {
                     debug!("contradiction encountered {}", self.trail.fmt_clause(cls));
                     debug_assert!(self.trail.is_lit_unsatisfied(new_unit_lit));
                     contradiction_found = Some(cls_idx);
-                    self.stats.contradictions += 1;
                     true
                 }
             });
@@ -102,6 +103,8 @@ impl Solver {
                     self.unpropagated_lit_pos,
                     self.trail.assigned_vars()
                 );
+                self.stats.contradictions += 1;
+                self.stats.contradiction_since_last_garbage_collections += 1;
                 return PropagationResult::Contradiction(conflicting_clause);
             }
 

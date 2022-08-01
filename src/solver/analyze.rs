@@ -201,7 +201,11 @@ impl Solver {
             .max()
             .unwrap_or(0);
 
-        self.unpropagated_lit_pos = self.trail.backtrack(backjump_level);
+        self.unpropagated_lit_pos = self.trail.backtrack(backjump_level, |trail_elem| {
+            if let TrailReason::Propagated { cls } = trail_elem.reason {
+                self.clause_db.get_meta_mut(cls).is_reason = false;
+            }
+        });
 
         if uip_clause.len() == 1 {
             debug_assert_eq!(backjump_level, 0);
@@ -213,6 +217,7 @@ impl Solver {
                 ldb_glue,
                 Self::calculate_ldb_from_clause(&self.trail, &uip_clause)
             );
+            debug!("new 1UIP clause has ldb value of {ldb_glue}");
 
             let uip_clause_idx = self.clause_db.insert_clause(&uip_clause, Some(ldb_glue));
             debug_assert!(self.trail.is_clause_all_unassigned(&uip_clause));
@@ -226,6 +231,7 @@ impl Solver {
                     cls: uip_clause_idx,
                 },
             );
+            self.clause_db.get_meta_mut(uip_clause_idx).is_reason = true;
         }
 
         AnalyzeResult::Done

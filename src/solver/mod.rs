@@ -24,6 +24,20 @@ use self::analyze::AnalyzeState;
 pub struct Stats {
     pub contradictions: u64,
     pub propagations: u64,
+    pub contradiction_since_last_garbage_collections: u64,
+}
+
+pub struct Limits {
+    /// After how many conflicts do we initiate garbage collection.
+    pub garbage_collection_conflicts: u64,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            garbage_collection_conflicts: 3000,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -47,6 +61,9 @@ pub struct Solver {
     /// Various data, for analyzing conflicts. This field is mainly used in analyze.rs
     /// and reset for each new conflict analysis.
     analyze_state: AnalyzeState,
+
+    /// Certain (dynamic limits) that are used to determine Behaviour
+    limits: Limits,
 }
 
 pub struct Model<'a> {
@@ -214,6 +231,8 @@ impl Solver {
                 return Result::Sat(model);
             }
 
+            self.maybe_collect_garbage();
+
             match self.decide() {
                 Some(var) => {
                     debug!("new decision variable {var}");
@@ -223,7 +242,7 @@ impl Solver {
                     unreachable!("
                         No new decision variable candidate found, this means all variables are successfully satisified.
                         However we just checked that the formula hasn't been satisfied yet. 
-                        Therefore that have to be some unassigned variables.
+                        Therefore, there have to be some unassigned variables.
                     ");
                 }
             }

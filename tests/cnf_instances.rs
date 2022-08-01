@@ -68,6 +68,7 @@ enum ExpectedSolution {
     Sat(Vec<i32>),
     Unsat,
 }
+
 fn extract_solution(content: &str) -> ExpectedSolution {
     let header = content
         .lines()

@@ -58,10 +58,6 @@ impl Lit {
     pub fn is_neg(self) -> bool {
         self.get() < 0
     }
-
-    pub(crate) fn to_u32(self) -> u32 {
-        self.0.get() as u32
-    }
 }
 
 impl From<Var> for Lit {

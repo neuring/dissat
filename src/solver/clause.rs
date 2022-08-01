@@ -37,6 +37,8 @@ fn data_to_clause_mut(clause: &mut [u32]) -> ClauseMut {
 pub struct ClauseIdx {
     pub(crate) start: u32,
     pub(crate) size: NonZeroU32,
+    #[cfg(debug_assertions)]
+    pub(crate) generation: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -49,6 +51,9 @@ pub struct ClauseMeta {
     /// Is this clause considered useless?
     /// If so it will removed in the next sweep.
     pub is_garbage: bool,
+
+    /// Is this clause used as the reason for a propagation.
+    pub is_reason: bool,
 }
 
 #[derive(Clone, Default)]
@@ -62,7 +67,21 @@ pub struct ClauseDB {
     pub(crate) clause_data_old: Vec<u32>,
 
     pub(crate) clause_meta: Vec<ClauseMeta>,
+
+    /// Generation counter to detect if ClauseIdx are outdated.
+    /// This field is incremented whenever we perform garbage collection.
+    #[cfg(debug_assertions)]
+    pub(crate) generation: u64,
 }
+
+// Make sure that Lit has the same size as u32, since we use this as the internal type to
+// store lits in the ClauseDB.
+// This is actually not sufficient because we need to ensure we can safely transmute between
+// u32 and Lit, but since we don't have safe transmute yet this will have to suffice.
+// (And its unlikely I'll ever want to change the internal representation of a Lit)
+const _: () = if std::mem::size_of::<u32>() != std::mem::size_of::<Lit>() {
+    panic!("Lit has unexpected size")
+};
 
 impl ClauseDB {
     pub fn insert_clause(&mut self, cls: Clause, ldb_glue: Option<NonZeroU32>) -> ClauseIdx {
@@ -84,10 +103,13 @@ impl ClauseDB {
             range: start..end,
             ldb_glue,
             is_garbage: false,
+            is_reason: false,
         });
         ClauseIdx {
             start,
             size: NonZeroU32::new(size).expect("Insertion of empty clause."),
+            #[cfg(debug_assertions)]
+            generation: self.generation,
         }
     }
 
@@ -97,7 +119,6 @@ impl ClauseDB {
 
         let start = r.start as usize;
         let end = (r.start + r.size.get()) as usize;
-
         data_to_clause(&self.clause_data[start..end])
     }
 
@@ -111,6 +132,12 @@ impl ClauseDB {
     }
 
     fn is_valid_clause_idx(&self, r: ClauseIdx) -> bool {
+        #[cfg(debug_assertions)]
+        if self.generation != r.generation {
+            tracing::debug!("clause index has invalid generation. ClauseDB generation: {}, clause idx generation: {}", self.generation, r.generation);
+            return false;
+        }
+
         let entry = self
             .clause_meta
             .binary_search_by_key(&r.start, |data| data.range.start);
@@ -149,5 +176,16 @@ impl ClauseDB {
 
     pub fn iter_clause_meta_mut(&mut self) -> impl Iterator<Item = &mut ClauseMeta> + '_ {
         self.clause_meta.iter_mut()
+    }
+
+    pub(crate) fn get_meta_mut(&mut self, cls: ClauseIdx) -> &mut ClauseMeta {
+        let entry = self
+            .clause_meta
+            .binary_search_by_key(&cls.start, |data| data.range.start);
+
+        match entry {
+            Ok(e) => &mut self.clause_meta[e],
+            Err(_) => panic!("Invalid clause index"),
+        }
     }
 }
