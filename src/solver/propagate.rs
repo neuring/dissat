@@ -38,7 +38,7 @@ impl Solver {
 
                 // Which watched clauses do we need to search for new literal.
                 let cls_idx = watch.clause;
-                let cls = self.clause_db.get_mut(cls_idx);
+                let mut cls = self.clause_db.get_mut(cls_idx);
 
                 let lit_idx = if cls[0] == -lit {
                     0
@@ -78,19 +78,18 @@ impl Solver {
                 if self.trail.is_lit_unassigned(new_unit_lit) {
                     debug!(
                         "new unit clause found {cls}",
-                        cls = self.trail.fmt_clause(cls)
+                        cls = self.trail.fmt_clause(&cls)
                     );
                     debug!("assigning literal {new_unit_lit}");
                     self.trail
                         .assign_lit(new_unit_lit, TrailReason::Propagated { cls: cls_idx });
                     // Make sure the newly assigned literal is at the beginning of the clause.
                     cls.swap(0, new_unit_lit_idx);
-                    // TODO this method call is expensive and should be replaced once we have a more optimal clause db impl
-                    self.clause_db.get_meta_mut(cls_idx).is_reason = true;
+                    cls.flags().set_is_reason(true);
                     self.stats.propagations += 1;
                     true
                 } else {
-                    debug!("contradiction encountered {}", self.trail.fmt_clause(cls));
+                    debug!("contradiction encountered {}", self.trail.fmt_clause(&cls));
                     debug_assert!(self.trail.is_lit_unsatisfied(new_unit_lit));
                     contradiction_found = Some(cls_idx);
                     true

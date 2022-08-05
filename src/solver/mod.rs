@@ -146,9 +146,12 @@ impl Solver {
     }
 
     /// Remove duplicated literals
-    fn normalise_clause(cls: &mut Vec<Lit>) {
-        cls.sort_by_key(|lit| lit.get().abs());
+    /// Returns true if the clause is trivially satisfied (i.e. contains positive and negative literal of the same variable)
+    fn normalise_clause(cls: &mut Vec<Lit>) -> bool {
+        cls.sort_by_key(|lit| lit.var().get());
         cls.dedup();
+
+        cls.array_windows().any(|[l0, l1]| l0.var() == l1.var())
     }
 
     pub fn add_clause<I>(&mut self, cls: I)
@@ -157,14 +160,15 @@ impl Solver {
     {
         let mut cls: Vec<Lit> = cls.into_iter().map(Lit::new).collect();
 
-        Self::normalise_clause(&mut cls);
+        if Self::normalise_clause(&mut cls) {
+            return;
+        };
 
         let max_lit = cls.iter().max_by_key(|l| l.var().get());
 
         if let Some(max_lit) = max_lit {
             self.trail.expand(max_lit.var());
-            self.watches
-                .expand(-Lit::new(max_lit.var().get()), Vec::new())
+            self.watches.expand(-Lit::from(max_lit.var()), Vec::new())
         }
 
         match cls.len() {

@@ -45,7 +45,7 @@ impl AnalyzeState {
 
     fn analyze_reason(&mut self, lit: Option<Lit>, reason: Clause, trail: &Trail) {
         debug!("analyzing reason clause {reason:?}");
-        for &other_lit in reason {
+        for other_lit in reason {
             if lit == Some(other_lit) {
                 continue;
             }
@@ -203,7 +203,7 @@ impl Solver {
 
         self.unpropagated_lit_pos = self.trail.backtrack(backjump_level, |trail_elem| {
             if let TrailReason::Propagated { cls } = trail_elem.reason {
-                self.clause_db.get_meta_mut(cls).is_reason = false;
+                self.clause_db.get_mut(cls).flags().set_is_reason(false);
             }
         });
 
@@ -215,12 +215,12 @@ impl Solver {
                 .expect("There has to be atleast a one level in clause, otherwise the clause length would be one");
             debug_assert_eq!(
                 ldb_glue,
-                Self::calculate_ldb_from_clause(&self.trail, &uip_clause)
+                Self::calculate_ldb_from_lits(&self.trail, &uip_clause)
             );
             debug!("new 1UIP clause has ldb value of {ldb_glue}");
 
             let uip_clause_idx = self.clause_db.insert_clause(&uip_clause, Some(ldb_glue));
-            debug_assert!(self.trail.is_clause_all_unassigned(&uip_clause));
+            debug_assert!(self.trail.are_lits_all_unassigned(&uip_clause));
             debug!(
                 "Assigning flipped uip {} because of learned driving clause {uip_clause:?}",
                 -uip
@@ -231,13 +231,16 @@ impl Solver {
                     cls: uip_clause_idx,
                 },
             );
-            self.clause_db.get_meta_mut(uip_clause_idx).is_reason = true;
+            self.clause_db
+                .get_mut(uip_clause_idx)
+                .flags()
+                .set_is_reason(true);
         }
 
         AnalyzeResult::Done
     }
 
-    fn calculate_ldb_from_clause(trail: &Trail, cls: Clause) -> NonZeroU32 {
+    fn calculate_ldb_from_lits(trail: &Trail, cls: &[Lit]) -> NonZeroU32 {
         (cls.iter()
             .map(|&lit| trail.get_decision_level(lit))
             .collect::<std::collections::HashSet<_>>()

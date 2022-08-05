@@ -61,13 +61,7 @@ impl<T> Default for LitVec<T> {
 }
 
 fn lit_to_idx(lit: Lit) -> usize {
-    let i = lit.get();
-
-    // positive and negative lit of a variable are placed next to each other.
-    // We subtract two, because there are not 0 or -0 literals.
-    let idx = (i < 0) as i32 + 2 * i.abs() - 2;
-    debug_assert!(idx >= 0);
-    idx as usize
+    lit.get() as usize
 }
 
 impl<T> std::ops::Index<Lit> for LitVec<T> {

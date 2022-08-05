@@ -16,7 +16,7 @@ impl Solver {
     pub(crate) fn log_state(&self) {
         #[cfg(debug_assertions)]
         for cls in self.clause_db.iter() {
-            let cls_str = self.trail.fmt_clause(cls);
+            let cls_str = self.trail.fmt_clause(&cls);
             debug!("{cls_str}");
         }
     }
@@ -44,7 +44,7 @@ impl Solver {
             if let TrailReason::Propagated { cls } = elem.reason {
                 let cls = self.clause_db.get(cls);
 
-                for &l in cls {
+                for l in cls {
                     if l == elem.lit {
                         continue;
                     }
@@ -56,7 +56,7 @@ impl Solver {
 
         if let Some(conflict) = conflict {
             writeln!(out, "X;");
-            for &l in conflict {
+            for l in conflict {
                 writeln!(out, "{} -> X;", l.var())?;
             }
         }
@@ -74,7 +74,7 @@ impl Trail {
         }
     }
 
-    pub(crate) fn fmt_clause(&self, clause: Clause) -> String {
+    pub(crate) fn fmt_clause(&self, clause: &[Lit]) -> String {
         clause
             .iter()
             .map(|&lit| self.fmt_lit(lit))

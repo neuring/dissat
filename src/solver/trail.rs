@@ -174,7 +174,7 @@ impl Trail {
         clause.iter().copied().any(|lit| self.is_lit_satisfied(lit))
     }
 
-    pub fn is_clause_all_unassigned(&self, clause: Clause) -> bool {
+    pub fn are_lits_all_unassigned(&self, clause: &[Lit]) -> bool {
         clause
             .iter()
             .copied()
